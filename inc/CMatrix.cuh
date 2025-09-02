@@ -35,4 +35,3 @@ CMatrix sigmoid_prime_cuda(CMatrix mat1);
 CMatrix tanh_cuda(CMatrix mat1);
 CMatrix relu_cuda(CMatrix mat1);
 CMatrix transpose_cuda(CMatrix mat1);
-CMatrix computeLossMatrix_cuda(CMatrix computedMatrix, CMatrix expectedMatrix);

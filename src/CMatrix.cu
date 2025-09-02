@@ -1,22 +1,25 @@
 #include "CMatrix.cuh"
 
+const int threadsPerBlockRowAndColLength = 16;
+
 //AxB=C
 __global__ void multiplyWithCuda(CMatrix A, CMatrix B, CMatrix C) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (!(row < A.height && col < B.width)) return;
 
-	if (row < A.height && col < B.width) {
-		double sum = 0;
-		for (int i = 0; i < A.width; i++)
-			sum += A.elements[row * A.width + i] * B.elements[i * B.width + col];
-		C.elements[row * C.width + col] = sum;
-	}
+	double sum = 0;
+	for (int i = 0; i < A.width; i++)
+		sum += A.elements[row * A.width + i] * B.elements[i * B.width + col];
+	C.elements[row * C.width + col] = sum;
 };
 
 //AxB=C (element-wise multiplication)
 __global__ void emultiplyWithCuda(CMatrix A, CMatrix B, CMatrix C) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (!(row < A.height && col < A.width)) return;
+
 	C.elements[row * C.width + col] = A.elements[row * A.width + col] * B.elements[row * B.width + col];
 };
 
@@ -24,12 +27,16 @@ __global__ void emultiplyWithCuda(CMatrix A, CMatrix B, CMatrix C) {
 __global__ void smultiplyWithCuda(CMatrix A, CMatrix B, double scalar) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (!(row < A.height && col < A.width)) return;
+
 	B.elements[row * B.width + col] = A.elements[row * A.width + col] * scalar;
 };
 
 __global__ void saddWithCuda(CMatrix A, CMatrix B, double scalar) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (!(row < A.height && col < A.width)) return;
+
 	B.elements[row * B.width + col] = A.elements[row * A.width + col] + scalar;
 }
 
@@ -37,12 +44,16 @@ __global__ void saddWithCuda(CMatrix A, CMatrix B, double scalar) {
 __global__ void addWithCuda(CMatrix A, CMatrix B, CMatrix C) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (!(row < A.height && col < A.width)) return;
+
 	C.elements[row * C.width + col] = A.elements[row * A.width + col] + B.elements[row * B.width + col];
 };
 
 __global__ void subWithCuda(CMatrix A, CMatrix B, CMatrix C) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (!(row < A.height && col < A.width)) return;
+
 	C.elements[row * C.width + col] = A.elements[row * A.width + col] - B.elements[row * B.width + col];
 };
 
@@ -50,6 +61,8 @@ __global__ void subWithCuda(CMatrix A, CMatrix B, CMatrix C) {
 __global__ void sigmoidWithCuda(CMatrix A, CMatrix B) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (!(row < A.height && col < A.width)) return;
+
 	B.elements[row * B.width + col] = 1 / (1 + exp(-(A.elements[row * A.width + col])));
 }
 
@@ -57,6 +70,8 @@ __global__ void sigmoidWithCuda(CMatrix A, CMatrix B) {
 __global__ void tanhWithCuda(CMatrix A, CMatrix B) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (!(row < A.height && col < A.width)) return;
+
 	B.elements[row * B.width + col] = tanh(A.elements[row * A.width + col]);
 }
 
@@ -64,21 +79,17 @@ __global__ void tanhWithCuda(CMatrix A, CMatrix B) {
 __global__ void reluWithCuda(CMatrix A, CMatrix B) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	B.elements[row * B.width + col] = max(A.elements[row * A.width + col], 0.0);
-}
+	if (!(row < A.height && col < A.width)) return;
 
-//(A-B)^2=C
-__global__ void squareDiffWithCuda(CMatrix A, CMatrix B, CMatrix C) {
-	int row = blockIdx.y * blockDim.y + threadIdx.y;
-	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	double diff = A.elements[row * A.width + col] - B.elements[row * B.width + col];
-	C.elements[row * C.width + col] = pow(diff, 2);
+	B.elements[row * B.width + col] = max(A.elements[row * A.width + col], 0.0);
 }
 
 //A_t=B
 __global__ void transposeWithCuda(CMatrix A, CMatrix B) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if (!(row < A.height && col < A.width)) return;
+	
 	B.elements[col * B.width + row] = A.elements[row * A.width + col];
 }
 
@@ -249,8 +260,8 @@ CMatrix multiply_cuda(CMatrix mat1, CMatrix mat2) {
 	cudaMalloc(&device_matrix_C.elements, size_C);
 	cudaMemcpy(device_matrix_C.elements, res.elements, size_C, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(16, 16);
-	dim3 numBlocks((col2 + 15)/16, (row1 + 15)/16);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(col2/threadsPerBlockRowAndColLength+1, row1/threadsPerBlockRowAndColLength+1);
 	multiplyWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B, device_matrix_C);
 	cudaDeviceSynchronize();
 
@@ -294,8 +305,8 @@ CMatrix emultiply_cuda(CMatrix mat1, CMatrix mat2) {
 	cudaMalloc(&device_matrix_C.elements, size_C);
 	cudaMemcpy(device_matrix_C.elements, res.elements, size_C, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(col2, row1);
-	dim3 numBlocks(1, 1);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(col1/threadsPerBlockRowAndColLength+1, row1/threadsPerBlockRowAndColLength+1);
 	emultiplyWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B, device_matrix_C);
 	cudaDeviceSynchronize();
 
@@ -328,8 +339,8 @@ CMatrix smultiply_cuda(CMatrix mat, double scalar) {
 	cudaMalloc(&device_matrix_B.elements, size_B);
 	cudaMemcpy(device_matrix_B.elements, res.elements, size_B, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(cols, rows);
-	dim3 numBlocks(1, 1);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(cols/threadsPerBlockRowAndColLength+1, rows/threadsPerBlockRowAndColLength+1);
 	smultiplyWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B, scalar);
 	cudaDeviceSynchronize();
 
@@ -361,8 +372,8 @@ CMatrix sadd_cuda(CMatrix mat, double scalar) {
 	cudaMalloc(&device_matrix_B.elements, size_B);
 	cudaMemcpy(device_matrix_B.elements, res.elements, size_B, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(cols, rows);
-	dim3 numBlocks(1, 1);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(cols/threadsPerBlockRowAndColLength+1, rows/threadsPerBlockRowAndColLength+1);
 	saddWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B, scalar);
 	cudaDeviceSynchronize();
 
@@ -404,8 +415,8 @@ CMatrix add_cuda(CMatrix mat1, CMatrix mat2) {
 	cudaMalloc(&device_matrix_C.elements, size_C);
 	cudaMemcpy(device_matrix_C.elements, res.elements, size_C, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(col2, row1);
-	dim3 numBlocks(1, 1);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(col1/threadsPerBlockRowAndColLength+1, col2/threadsPerBlockRowAndColLength+1);
 	addWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B, device_matrix_C);
 	cudaDeviceSynchronize();
 
@@ -447,8 +458,8 @@ CMatrix subtract_cuda(CMatrix mat1, CMatrix mat2) {
 	cudaMalloc(&device_matrix_C.elements, size_C);
 	cudaMemcpy(device_matrix_C.elements, res.elements, size_C, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(col2, row1);
-	dim3 numBlocks(1, 1);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(col1/threadsPerBlockRowAndColLength+1, row1/threadsPerBlockRowAndColLength+1);
 	subWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B, device_matrix_C);
 	cudaDeviceSynchronize();
 
@@ -481,8 +492,8 @@ CMatrix sigmoid_cuda(CMatrix mat1) {
 	cudaMalloc(&device_matrix_B.elements, size_B);
 	cudaMemcpy(device_matrix_B.elements, res.elements, size_B, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(col, row);
-	dim3 numBlocks(1, 1);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(col/threadsPerBlockRowAndColLength+1, row/threadsPerBlockRowAndColLength+1);
 	sigmoidWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B);
 	cudaDeviceSynchronize();
 
@@ -520,8 +531,8 @@ CMatrix relu_cuda(CMatrix mat1) {
 	cudaMalloc(&device_matrix_B.elements, size_B);
 	cudaMemcpy(device_matrix_B.elements, res.elements, size_B, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(col, row);
-	dim3 numBlocks(1, 1);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(col/threadsPerBlockRowAndColLength+1, row/threadsPerBlockRowAndColLength+1);
 	reluWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B);
 	cudaDeviceSynchronize();
 
@@ -553,8 +564,8 @@ CMatrix tanh_cuda(CMatrix mat1) {
 	cudaMalloc(&device_matrix_B.elements, size_B);
 	cudaMemcpy(device_matrix_B.elements, res.elements, size_B, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(col, row);
-	dim3 numBlocks(1, 1);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(col/threadsPerBlockRowAndColLength+1, row/threadsPerBlockRowAndColLength+1);
 	tanhWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B);
 	cudaDeviceSynchronize();
 
@@ -585,56 +596,14 @@ CMatrix transpose_cuda(CMatrix matA) {
 	cudaMalloc(&device_matrix_B.elements, size_B);
 	cudaMemcpy(device_matrix_B.elements, res.elements, size_B, cudaMemcpyHostToDevice);
 
-	dim3 threadsPerBlock(matA.width, matA.height);
-	dim3 numBlocks(1, 1);
+	dim3 threadsPerBlock(threadsPerBlockRowAndColLength, threadsPerBlockRowAndColLength);
+	dim3 numBlocks(newMatCols/threadsPerBlockRowAndColLength+1, newMatRows/threadsPerBlockRowAndColLength+1);
 	transposeWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B);
 	cudaDeviceSynchronize();
 
 	cudaMemcpy(res.elements, device_matrix_B.elements, size_B, cudaMemcpyDeviceToHost);
 	cudaFree(device_matrix_A.elements);
 	cudaFree(device_matrix_B.elements);
-
-	return res;
-}
-
-//Helper function to compute the square diff CUDA kernel and return it
-CMatrix computeLossMatrix_cuda(CMatrix computedMatrix, CMatrix expectedMatrix) {
-	int row = computedMatrix.height;
-	int col = computedMatrix.width;
-
-	if (expectedMatrix.height != row && expectedMatrix.width != col)
-		throw_line("Matricies are not of equal size");
-
-	CMatrix res = createCMatrix(row, col);
-
-	CMatrix device_matrix_A;
-	CMatrix device_matrix_B;
-	CMatrix device_matrix_C;
-
-	device_matrix_A.width = computedMatrix.width;device_matrix_A.height = computedMatrix.height;
-	device_matrix_B.width = expectedMatrix.width;device_matrix_B.height = expectedMatrix.height;
-	device_matrix_C.width = res.width;device_matrix_C.height = res.height;
-
-	size_t size_A = computedMatrix.width * computedMatrix.height * sizeof(double);
-	size_t size_B = expectedMatrix.width * expectedMatrix.height * sizeof(double);
-	size_t size_C = res.width * res.height * sizeof(double);
-
-	cudaMalloc(&device_matrix_A.elements, size_A);
-	cudaMemcpy(device_matrix_A.elements, computedMatrix.elements, size_A, cudaMemcpyHostToDevice);
-	cudaMalloc(&device_matrix_B.elements, size_B);
-	cudaMemcpy(device_matrix_B.elements, expectedMatrix.elements, size_B, cudaMemcpyHostToDevice);
-	cudaMalloc(&device_matrix_C.elements, size_C);
-	cudaMemcpy(device_matrix_C.elements, res.elements, size_C, cudaMemcpyHostToDevice);
-
-	dim3 threadsPerBlock(col, row);
-	dim3 numBlocks(1, 1);
-	squareDiffWithCuda <<<numBlocks, threadsPerBlock >>> (device_matrix_A, device_matrix_B, device_matrix_C);
-	cudaDeviceSynchronize();
-
-	cudaMemcpy(res.elements, device_matrix_C.elements, size_C, cudaMemcpyDeviceToHost);
-	cudaFree(device_matrix_A.elements);
-	cudaFree(device_matrix_B.elements);
-	cudaFree(device_matrix_C.elements);
 
 	return res;
 }

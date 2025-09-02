@@ -38,8 +38,8 @@ int main() {
     const double learningRate = .05;
     int networkStructure[] = {layer1, layer2, layer3, layer4};
     NeuralNetwork network = NeuralNetwork(networkStructure, networkSize);
-    network.stochasticGradDescent(trainData, epochs, batchSize, learningRate, testData);
-    //CudaVNonCuda();
+    //network.stochasticGradDescent(trainData, epochs, batchSize, learningRate, testData);
+    CudaVNonCuda();
 }
 
 //This function is to test various functions. 
@@ -75,37 +75,32 @@ void helperFunction(NeuralNetwork network, CMatrix inputNodes) {
 //CUDA matrix multiplication vs regular matrix multiplication
 void CudaVNonCuda() {
     //Creates and sets a bunch of CMatrix's (Mainly for testing purposes)
-    const int iterations = 10;
-    const int matrix_scale_factor = 8;
+    const int iterations = 1;
+    const int matrix_scale_factor = 100;
 
     std::function<double(int, int)> foo = [](int x, int y) {
-        return (double)((x + 2*y));
+        return (100*x + y);
     };
 
     //This does a bunch of Matrix multiplications.
     for(int i = 1; i < iterations*matrix_scale_factor; i+=matrix_scale_factor) {
-        CMatrix m1 = createCMatrix(i+1, i);
-        CMatrix m2 = createCMatrix(i, i+1);
+        CMatrix m1 = createCMatrix(i*matrix_scale_factor, i*matrix_scale_factor);
+        CMatrix m2 = createCMatrix(i*matrix_scale_factor, i*matrix_scale_factor);
         setCMatrix(foo, m1);
         setCMatrix(foo, m2);
         std::cout << "Size of Matrix 1 is : " << m1.height << "x" << m1.width << std::endl;
         std::cout << "Size of Matrix 2 is : " << m2.height << "x" << m2.width << std::endl;
 
-        clock_t now = clock();
-        CMatrix m3 = CMatrixMultiply(m1, m2);
-        std::cout << "TIME Normal Mult: " << clock() - now << std::endl;
-            
-        now = clock();
-        CMatrix m4 = multiply_cuda(m1, m2);
-        std::cout << "TIME CUDA Mult : " << clock() - now << std::endl << std::endl;
+        CMatrix m3 = transpose_cuda(m1);
 
+        // printCMatrix(m1);
+        // printCMatrix(m2);
         printCMatrix(m1);
-        printCMatrix(m2);
+        printCMatrix(m3);
 
         freeCMatrix(m1);
         freeCMatrix(m2);
         freeCMatrix(m3);
-        freeCMatrix(m4);
    }
 }
 
