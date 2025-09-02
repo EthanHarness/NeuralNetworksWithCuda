@@ -16,9 +16,19 @@ typedef struct {
 void setCMatrix(std::function<double(int, int)> func, CMatrix& res);
 void printCMatrix(const CMatrix& res);
 CMatrix createCMatrix(int rows, int cols);
-CMatrix CMatrixAdd(CMatrix mat1, CMatrix mat2);
+
 CMatrix CMatrixSMultiply(CMatrix mat, double scalar);
+CMatrix CMatrixEMultiply(CMatrix mat1, CMatrix mat2);
+CMatrix CMatrixSAdd(CMatrix mat, double scalar);
 CMatrix CMatrixMultiply(CMatrix mat1, CMatrix mat2);
+CMatrix CMatrixAdd(CMatrix mat1, CMatrix mat2);
+CMatrix CMatrixSubtract(CMatrix mat1, CMatrix mat2);
+CMatrix CMatrixSigmoid(CMatrix mat);
+CMatrix CMatrixSigmoidPrime(CMatrix mat);
+CMatrix CMatrixTanh(CMatrix mat);
+CMatrix CMatrixRelu(CMatrix mat);
+CMatrix CMatrixTranspose(CMatrix mat);
+
 double getMax(CMatrix mat);
 double getMax(CMatrix mat, int row);
 int getArgmax(CMatrix);

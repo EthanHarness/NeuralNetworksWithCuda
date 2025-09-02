@@ -10,7 +10,6 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
-void helperFunction(NeuralNetwork network, CMatrix inputNodes);
 void CudaVNonCuda();
 std::vector<std::pair<CMatrix, CMatrix>> readTestData();
 std::vector<std::pair<CMatrix, CMatrix>> readTrainingData();
@@ -38,48 +37,19 @@ int main() {
     const double learningRate = .05;
     int networkStructure[] = {layer1, layer2, layer3, layer4};
     NeuralNetwork network = NeuralNetwork(networkStructure, networkSize);
-    //network.stochasticGradDescent(trainData, epochs, batchSize, learningRate, testData);
-    CudaVNonCuda();
+    network.stochasticGradDescent(trainData, epochs, batchSize, learningRate, testData);
+    //CudaVNonCuda();
+    return 0;
 }
 
-//This function is to test various functions. 
-//Probably should have written unit tests but fuck it.
-void helperFunction(NeuralNetwork network, CMatrix inputNodes) {
-
-    CMatrix dummyInput = createCMatrix(1, 5);
-    CMatrix dummyWeights = createCMatrix(5, 3);
-    CMatrix dummyBias = createCMatrix(1, 3);
-
-    std::function<double(int, int)> foo1; 
-    std::function<double(int, int)> foo2;
-    std::function<double(int, int)> foo3;
-
-    foo1 = [](int x, int y) {
-        return (double)(x + 1.14 + y) * 1.34;
-    };
-    foo2 = [](int x, int y) {
-        return (double)(x - 2.82 + y) * 8.21;
-    };
-    foo3 = [](int x, int y) {
-        return (double)(x + 3.91 - y) * 8.92;
-    };
-
-    setCMatrix(foo1, dummyInput);
-    CMatrix res = relu_cuda(dummyInput);
-    printCMatrix(dummyInput);
-    std::cout << "\n";
-    printCMatrix(res);
-}
-
-//A little DEMO function I wrote to compare the speed of 
-//CUDA matrix multiplication vs regular matrix multiplication
+//Temporary helper function to test variuos CMat functions
 void CudaVNonCuda() {
     //Creates and sets a bunch of CMatrix's (Mainly for testing purposes)
     const int iterations = 1;
-    const int matrix_scale_factor = 100;
+    const int matrix_scale_factor = 512;
 
     std::function<double(int, int)> foo = [](int x, int y) {
-        return (100*x + y);
+        return 1;
     };
 
     //This does a bunch of Matrix multiplications.
@@ -89,14 +59,17 @@ void CudaVNonCuda() {
         setCMatrix(foo, m1);
         setCMatrix(foo, m2);
         std::cout << "Size of Matrix 1 is : " << m1.height << "x" << m1.width << std::endl;
-        std::cout << "Size of Matrix 2 is : " << m2.height << "x" << m2.width << std::endl;
 
-        CMatrix m3 = transpose_cuda(m1);
+        CMatrix m3 = multiply_cuda(m1,m2);
+        std::cout << "Size of Matrix 2 is : " << m3.height << "x" << m3.width << std::endl;
 
-        // printCMatrix(m1);
-        // printCMatrix(m2);
-        printCMatrix(m1);
-        printCMatrix(m3);
+        CMatrix m4 = CMatrixMultiply(m1,m2);
+        std::cout << "Size of Matrix 3 is : " << m4.height << "x" << m4.width << std::endl;
+
+        //printCMatrix(m1);
+        //printCMatrix(m2);
+        //printCMatrix(m3);
+        printCMatrix(m4);
 
         freeCMatrix(m1);
         freeCMatrix(m2);

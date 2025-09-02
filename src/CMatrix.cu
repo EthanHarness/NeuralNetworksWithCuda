@@ -139,7 +139,7 @@ CMatrix CMatrixAdd(CMatrix mat1, CMatrix mat2) {
 	if (cols != mat2.width || rows != mat2.height)
 		throw_line("Matricies are not the same size.");
 
-	CMatrix result = createCMatrix(cols, rows);
+	CMatrix result = createCMatrix(rows, cols);
 	std::function<double(int, int)> add = [mat1, mat2, cols](int i, int j) {
 		return mat1.elements[i * cols + j] + mat2.elements[i * cols + j];
 	};
@@ -147,12 +147,40 @@ CMatrix CMatrixAdd(CMatrix mat1, CMatrix mat2) {
 	return result;
 }
 
+CMatrix CMatrixSubtract(CMatrix mat1, CMatrix mat2) {
+	int cols = mat1.width;
+	int rows = mat2.height;
+
+	if (cols != mat2.width || rows != mat2.height)
+		throw_line("Matricies are not the same size.");
+
+	CMatrix result = createCMatrix(rows, cols);
+	std::function<double(int, int)> add = [mat1, mat2, cols](int i, int j) {
+		return mat1.elements[i * cols + j] - mat2.elements[i * cols + j];
+	};
+	setCMatrix(add, result);
+	return result;
+}
+
+CMatrix CMatrixSAdd(CMatrix mat, double scalar) {
+	int cols = mat.width;
+	int rows = mat.height;
+
+	CMatrix res = createCMatrix(rows, cols);
+	std::function<double(int, int)> add = [mat, scalar, cols](int i, int j) {
+		return mat.elements[i * cols + j] + scalar;
+	};
+
+	setCMatrix(add, res);
+	return res;
+}
+
 //scalar*A and returned
 CMatrix CMatrixSMultiply(CMatrix mat, double scalar) {
 	int cols = mat.width;
 	int rows = mat.height;
 
-	CMatrix res = createCMatrix(cols, rows);
+	CMatrix res = createCMatrix(rows, cols);
 	std::function<double(int, int)> smult = [mat, scalar](int i, int j) {
 		return mat.elements[i * mat.width + j] * scalar;
 	};
@@ -160,7 +188,6 @@ CMatrix CMatrixSMultiply(CMatrix mat, double scalar) {
 	return res;
 }
 
-//AxB and returned
 CMatrix CMatrixMultiply(CMatrix mat1, CMatrix mat2) {
 	int row1 = mat1.height;
 	int row2 = mat2.height;
@@ -175,16 +202,96 @@ CMatrix CMatrixMultiply(CMatrix mat1, CMatrix mat2) {
 	double* mat1Head = mat1.elements;
 	double* mat2Head = mat2.elements;
 
+	double sum = 0; 
 	for (int i = 0; i < row1; i++) {
 		for (int j = 0; j < col2; j++) {
 			for (int k = 0; k < row2; k++) {
-				resHead[i * res.width + j] += mat1Head[i * col1 + k] * mat2Head[k * col2 + j];
+				sum += mat1Head[i * col1 + k] * mat2Head[k * col2 + j];
 			}
+			resHead[i * res.width + j] = sum;
+			sum = 0;
 		}
 	}
 
 	return res;
 }
+
+CMatrix CMatrixEMultiply(CMatrix mat1, CMatrix mat2) {
+	int row1 = mat1.height;
+	int row2 = mat2.height;
+	int col1 = mat1.width;
+	int col2 = mat2.width;
+
+	if (col1 != col2 || row1 != row2)
+		throw_line("Columns/rows of matrix 1 do not equal the columns/rows of matrix 2.");
+
+	CMatrix res = createCMatrix(row1, col2);
+	double* resHead = res.elements;
+	double* mat1Head = mat1.elements;
+	double* mat2Head = mat2.elements;
+
+	for (int i = 0; i < row1; i++) {
+		for (int j = 0; j < col2; j++) {
+			resHead[i * res.width + j] = mat1Head[i * col1 + j] * mat2Head[i * col1 + j];
+		}
+	}
+
+	return res;
+}
+
+CMatrix CMatrixSigmoid(CMatrix mat) {
+	int cols = mat.width;
+	int rows = mat.height;
+
+	CMatrix res = createCMatrix(rows, cols);
+	std::function<double(int, int)> foo = [mat](int i, int j) {
+		return 1 / (1 + std::exp(mat.elements[i * mat.width + j]*-1));
+	};
+	setCMatrix(foo, res);
+	return res;
+}
+
+CMatrix CMatrixTanh(CMatrix mat) {
+	int cols = mat.width;
+	int rows = mat.height;
+
+	CMatrix res = createCMatrix(rows, cols);
+	std::function<double(int, int)> foo = [mat](int i, int j) {
+		return std::tanh(mat.elements[i * mat.width + j]);
+	};
+	setCMatrix(foo, res);
+	return res;
+}
+
+CMatrix CMatrixRelu(CMatrix mat) {
+	int cols = mat.width;
+	int rows = mat.height;
+
+	CMatrix res = createCMatrix(rows, cols);
+	std::function<double(int, int)> foo = [mat](int i, int j) {
+		return std::max(mat.elements[i * mat.width + j], 0.0);
+	};
+	setCMatrix(foo, res);
+	return res;
+}
+
+CMatrix CMatrixSigmoidPrime(CMatrix mat) {
+	return CMatrixEMultiply(CMatrixSigmoid(mat), CMatrixSAdd(CMatrixSMultiply(CMatrixSigmoid(mat), -1), 1));
+}
+
+CMatrix CMatrixTranspose(CMatrix mat) {
+	int newMatRows = mat.width;
+	int newMatCols = mat.height;
+
+	CMatrix res = createCMatrix(newMatRows, newMatCols);
+	std::function<double(int, int)> foo = [mat, res](int i, int j) {
+		return mat.elements[j * res.width + i];
+	};
+	setCMatrix(foo, res);
+	return res;
+}
+
+
 
 //Dont think we use
 //Gets the max element in a matrix
@@ -239,6 +346,10 @@ CMatrix multiply_cuda(CMatrix mat1, CMatrix mat2) {
 	if (col1 != row2)
 		throw_line("Columns of matrix 1 do not equal the rows of matrix 2.");
 
+	if (row1 < 512 || row2 < 512 || col1 < 512 || col2 < 512) {
+		return CMatrixMultiply(mat1, mat2);
+	}
+
 	CMatrix res = createCMatrix(row1, col2);
 
 	CMatrix device_matrix_A;
@@ -284,6 +395,10 @@ CMatrix emultiply_cuda(CMatrix mat1, CMatrix mat2) {
 	if (col1 != col2 || row1 != row2)
 		throw_line("Columns/rows of matrix 1 do not equal the columns/rows of matrix 2.");
 
+	if (row1 < 512 || row2 < 512 || col1 < 512 || col2 < 512) {
+		return CMatrixEMultiply(mat1, mat2);
+	}
+
 	CMatrix res = createCMatrix(row1, col2);
 
 	CMatrix device_matrix_A;
@@ -323,6 +438,10 @@ CMatrix smultiply_cuda(CMatrix mat, double scalar) {
 	int rows = mat.height;
 	int cols = mat.width;
 
+	if (rows < 512 || cols < 512) {
+		return CMatrixSMultiply(mat, scalar);
+	}
+
 	CMatrix res = createCMatrix(rows, cols);
 
 	CMatrix device_matrix_A;
@@ -355,6 +474,10 @@ CMatrix smultiply_cuda(CMatrix mat, double scalar) {
 CMatrix sadd_cuda(CMatrix mat, double scalar) {
 	int rows = mat.height;
 	int cols = mat.width;
+	
+	if (rows < 512 || cols < 512) {
+		return CMatrixSAdd(mat, scalar);
+	}
 
 	CMatrix res = createCMatrix(rows, cols);
 
@@ -393,6 +516,10 @@ CMatrix add_cuda(CMatrix mat1, CMatrix mat2) {
 
 	if (col1 != col2 && row1 != row2)
 		throw_line("Columns/rows of matrix 1 do not equal the columns/rows of matrix 2.");
+
+	if (row1 < 512 || row2 < 512 || col1 < 512 || col2 < 512) {
+		return CMatrixAdd(mat1, mat2);
+	}
 
 	CMatrix res = createCMatrix(row1, col1);
 
@@ -437,6 +564,10 @@ CMatrix subtract_cuda(CMatrix mat1, CMatrix mat2) {
 	if (col1 != col2 && row1 != row2)
 		throw_line("Columns/rows of matrix 1 do not equal the columns/rows of matrix 2.");
 
+	if (row1 < 512 || row2 < 512 || col1 < 512 || col2 < 512) {
+		return CMatrixSubtract(mat1, mat2);
+	}
+
 	CMatrix res = createCMatrix(row1, col1);
 
 	CMatrix device_matrix_A;
@@ -476,6 +607,10 @@ CMatrix sigmoid_cuda(CMatrix mat1) {
 	int row = mat1.height;
 	int col = mat1.width;
 
+	if (row < 512 || col < 512) {
+		return CMatrixSigmoid(mat1);
+	}
+
 	CMatrix res = createCMatrix(row, col);
 
 	CMatrix device_matrix_A;
@@ -505,6 +640,9 @@ CMatrix sigmoid_cuda(CMatrix mat1) {
 }
 
 CMatrix sigmoid_prime_cuda(CMatrix mat1) {
+	if (mat1.height < 512 || mat1.width < 512) {
+		return CMatrixSigmoidPrime(mat1);
+	}
 	CMatrix temp1 = sigmoid_cuda(mat1);
 	CMatrix temp2 = sadd_cuda(smultiply_cuda(temp1, -1), 1);
 	return emultiply_cuda(temp1, temp2);
@@ -514,6 +652,10 @@ CMatrix sigmoid_prime_cuda(CMatrix mat1) {
 CMatrix relu_cuda(CMatrix mat1) {
 	int row = mat1.height;
 	int col = mat1.width;
+
+	if (row < 512 || col < 512) {
+		return CMatrixRelu(mat1);
+	}
 
 	CMatrix res = createCMatrix(row, col);
 
@@ -548,6 +690,10 @@ CMatrix tanh_cuda(CMatrix mat1) {
 	int row = mat1.height;
 	int col = mat1.width;
 
+	if (row < 512 || col < 512) {
+		return CMatrixTanh(mat1);
+	}
+
 	CMatrix res = createCMatrix(row, col);
 
 	CMatrix device_matrix_A;
@@ -579,6 +725,10 @@ CMatrix tanh_cuda(CMatrix mat1) {
 CMatrix transpose_cuda(CMatrix matA) {
 	int newMatRows = matA.width;
 	int newMatCols = matA.height;
+
+	if (newMatRows < 512 || newMatCols < 512) {
+		return CMatrixTranspose(matA);
+	}
 
 	CMatrix res = createCMatrix(newMatRows, newMatCols);
 
